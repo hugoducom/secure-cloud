@@ -1,9 +1,23 @@
 #!/usr/bin/env python3
+import os
 from client.crypto import *
 import Crypto.Random
-from client.consts import KEY_LENGTH_BYTES
+from consts import KEY_LENGTH_BYTES
+from server import api as server_api
+from models import UserMetadata, User, FolderMetadata, Folder
+from client.session import Session, set_session_user, get_session_user
+import client.file_manager as client_file_manager
+from typing import Optional
 
-def register(username, password):
+
+def register(username: str, password: str) -> bool:
+    """
+    Register a new user
+    :param username: Username
+    :param password: Password
+    :return: bool
+    """
+    print("Registering...")
     # Generate password_hash
     master_key, password_hash = generate_password_hash(username, password)
     stretched_master_key = hkdf_stretched_master_key(master_key)
@@ -12,22 +26,146 @@ def register(username, password):
     sym_key = Crypto.Random.get_random_bytes(KEY_LENGTH_BYTES)
     nonce1 = Crypto.Random.get_random_bytes(24)
     # Cipher to send it to the server
-    encrypted_sym_key, tag1 = xcha_cha_20_poly_1305_encrypt(sym_key, nonce1, stretched_master_key)
+    _, encrypted_sym_key, tag1 = xcha_cha_20_poly_1305_encrypt(sym_key, nonce1, stretched_master_key)
 
     # Generate asymmetric key
     rsa_key = generate_asym_keys()
     private_key = rsa_key.exportKey()
     nonce2 = Crypto.Random.get_random_bytes(24)
     # Cipher to send it to the server
-    encrypted_private_key, tag2 = xcha_cha_20_poly_1305_encrypt(private_key, nonce2, sym_key)
+    _, encrypted_private_key, tag2 = xcha_cha_20_poly_1305_encrypt(private_key, nonce2, sym_key)
 
-    # TODO SEND TO SERVER PASSWORD_HASH, ENCRYPTED_SYM_KEY, NONCE1, TAG1, ENCRYPTED_PRIVATE_KEY, NONCE2, TAG2
-    return password_hash, (encrypted_sym_key, nonce1, tag1), (encrypted_private_key, nonce2, tag2)
+    # Create the UserMetadata object
+    user_metadata = UserMetadata(username, password_hash, (encrypted_sym_key, nonce1, tag1),
+                                 (encrypted_private_key, nonce2, tag2), rsa_key.publickey().exportKey())
 
-def login(username, password):
-    
+    # Init the local root folder
+    user = User(username, stretched_master_key, sym_key, private_key, rsa_key.publickey().exportKey())
+    client_file_manager.init(user)
+    # Create the user root folder metadata
+    root_sym_key = Crypto.Random.get_random_bytes(KEY_LENGTH_BYTES)
+    nonce = Crypto.Random.get_random_bytes(24)
+    _, encrypted_root_sym_key, tag = xcha_cha_20_poly_1305_encrypt(root_sym_key, nonce, sym_key)
+    root_metadata: FolderMetadata = FolderMetadata(
+        uuid=username,
+        enc_name=(b"\x00", b"\x00", b"\x00"),
+        enc_sym_key=(encrypted_root_sym_key, nonce, tag),
+        vault_path="",  # Has to be set by the server
+        owner=username,
+        nodes=[],
+    )
 
-def generate_password_hash(username, password):
+    return server_api.register_request(user_metadata.to_json(), root_metadata.to_json())
+
+
+def login(username: str, password: str) -> bool:
+    """
+    Login a user
+    :param username: Username
+    :param password: Password
+    :return: bool
+    """
+    master_key, password_hash = generate_password_hash(username, password)
+    password_hash = hkdf_password_hash(master_key)
+
+    ret = server_api.login_request(username, password_hash)
+    # Login failed
+    if not ret:
+        return False
+
+    user: User = decrypt_user_metadata(ret, master_key)
+    root_folder_metadata: FolderMetadata = server_api.get_user_root_folder_request(user.username)
+    root_folder: Folder = decrypt_folder_metadata(root_folder_metadata, user)
+    set_session_user(Session(user, root_folder))
+    return True
+
+
+def generate_password_hash(username: str, password: str) -> (bytes, bytes):
+    """
+    Generate a password hash
+    :param username: Username
+    :param password: Password
+    :return: (master_key, password_hash)
+    """
     master_key = generate_master_key(username, password)
     return master_key, hkdf_password_hash(master_key)
 
+
+def change_password(username: str, old_password: str, new_password: str) -> bool:
+    """
+    Change the password of the connected user
+    :param username: Username as string
+    :param old_password: Old password
+    :param new_password: New password
+    :return: bool
+    """
+    session = get_session_user()
+    if session is None:
+        print("You are not connected")
+        return False
+    # Generate the new password hash
+    new_master_key, new_password_hash = generate_password_hash(username, new_password)
+    new_stretched_master_key = hkdf_stretched_master_key(new_master_key)
+    # Generate the old password hash
+    old_master_key, old_password_hash = generate_password_hash(username, old_password)
+
+    # Generate the new encrypted symmetric key
+    nonce = Crypto.Random.get_random_bytes(24)
+    _, new_enc_sym_key, tag = xcha_cha_20_poly_1305_encrypt(session.user.sym_key, nonce, new_stretched_master_key)
+
+    # Change the password on the server
+    return server_api.change_password_request(username, old_password_hash, new_password_hash,
+                                              (new_enc_sym_key, nonce, tag))
+
+
+def decrypt_user_metadata(user_metadata: UserMetadata, master_key: bytes) -> User:
+    """
+    Decrypt the user metadata
+    :param user_metadata: UserMetadata object
+    :param master_key: Master key
+    :return: User object
+    """
+    # Compute the stretched master key
+    stretched_master_key = hkdf_stretched_master_key(master_key)
+
+    # Decrypt the symmetric key
+    sym_key = xcha_cha_20_poly_1305_decrypt(user_metadata.encrypted_sym_key[0],
+                                            user_metadata.encrypted_sym_key[1],
+                                            user_metadata.encrypted_sym_key[2],
+                                            stretched_master_key)
+    # Decrypt the private key
+    private_key = xcha_cha_20_poly_1305_decrypt(user_metadata.encrypted_private_key[0],
+                                                user_metadata.encrypted_private_key[1],
+                                                user_metadata.encrypted_private_key[2],
+                                                sym_key)
+    # Create the User object
+    return User(user_metadata.username, stretched_master_key, sym_key, private_key, user_metadata.public_key)
+
+
+def decrypt_folder_metadata(folder_metadata: FolderMetadata, user: User) -> Optional[Folder]:
+    """
+    Decrypt the folder metadata
+    :param folder_metadata: FolderMetadata object
+    :param user: User object
+    :return: FolderMetadata object
+    """
+    # Decrypt the symmetric key
+    sym_key = xcha_cha_20_poly_1305_decrypt(folder_metadata.enc_sym_key[0],
+                                            folder_metadata.enc_sym_key[1],
+                                            folder_metadata.enc_sym_key[2],
+                                            user.sym_key)
+    base_path = client_file_manager.get_root_path_for_user(user.username)
+    # If user root folder
+    if folder_metadata.uuid == folder_metadata.owner:
+        return Folder(folder_metadata.owner, base_path, sym_key, folder_metadata.nodes)
+
+    # Decrypt the name
+    name = xcha_cha_20_poly_1305_decrypt(folder_metadata.enc_name[0],
+                                         folder_metadata.enc_name[1],
+                                         folder_metadata.enc_name[2],
+                                         sym_key)
+
+    # Create the Folder object
+    rel_path = folder_metadata.vault_path.split(folder_metadata.owner)[1]
+    path = os.path.join(os.path.join(base_path, rel_path), name.decode('utf-8'))
+    return Folder(name.decode('utf-8'), path, sym_key, folder_metadata.nodes)

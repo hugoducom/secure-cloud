@@ -1,39 +1,87 @@
 #!/usr/bin/env python3
-import Crypto.Random
-import pysodium
-from client import *
+from getpass import getpass
+from client import auth as client_auth
+from client import session as client_session
+from server import storage as server_storage
+from client import file_manager as client_file_manager
 
 
 def main():
-    print("Hello World")
+    # Initialize the storage
+    server_storage.init()
 
-    salt = pysodium.randombytes(pysodium.crypto_pwhash_SALTBYTES)
-    master_key = crypto.generate_master_key("password", salt)
-    print(f"Master key : {master_key}")
+    # Simple menu picker
+    print("Welcome to the secure cloud client!")
 
-    stretched_master_key = crypto.hkdf_stretched_master_key(master_key)
-    print(f"Stretched master key : {stretched_master_key}")
+    while True:
+        print("""
+        1. Login
+        2. Register
+        3. Exit
+        """)
+        choice = input("Enter your choice: ")
+        if choice == "1":
+            username = input("Enter your username: ")
+            password = getpass("Enter your password: ")
+            logged_in = client_auth.login(username, password)
+            if logged_in:
+                print("Welcome " + username)
+                session = client_session.get_session_user()
+                # Init the directory
+                client_file_manager.init(session.user)
+                print("Files storage path : " + client_session.get_session_user().base_path)
+                break
+            else:
+                print("Wrong username or password")
 
-    password_hash = crypto.hkdf_password_hash(master_key)
-    print(f"Password hash : {password_hash}")
+        elif choice == "2":
+            username = input("Enter your new username: ")
+            password = getpass("Enter your new password: ")
+            if client_auth.register(username, password):
+                print("User registered successfully")
+            else:
+                print("Something went wrong. Please try again.")
 
-    sym_key = Crypto.Random.get_random_bytes(32)
-    print(f"Sym key : {sym_key}")
-    nonce = Crypto.Random.get_random_bytes(24)
-    _, encrypted_sym_key, tag = crypto.xcha_cha_20_poly_1305_encrypt(sym_key, nonce, stretched_master_key)
-    print(f"Encrypted sym key : {nonce}, {encrypted_sym_key}, {tag}")
+        elif choice == "3":
+            print("Goodbye!")
+            exit(0)
 
-    decrypted_sym_key = crypto.xcha_cha_20_poly_1305_decrypt(encrypted_sym_key, nonce, tag, stretched_master_key)
-    print(f"Decrypted sym key : {decrypted_sym_key}")
-
-    rsa_key = crypto.generate_asym_keys()
-    print(f"RSA key : {rsa_key.exportKey()}")
-
-    encrypted_asym_key = crypto.encrypt_asym(rsa_key.exportKey(), rsa_key)
-    print(f"Encrypted asym key : {encrypted_asym_key}")
-
-    decrypted_asym_key = crypto.decrypt_asym(encrypted_asym_key, rsa_key)
-    print(f"Decrypted asym key : {decrypted_asym_key}")
+    while True:
+        print("""
+        1. Change directory
+        2. List files
+        3. Download file
+        4. Upload file
+        5. Share folder
+        6. Change password
+        7. Exit
+        """)
+        choice = input("Enter your choice: ")
+        if choice == "1":
+            print("Change directory")
+            client_session.get_session_user().change_directory()
+        elif choice == "2":
+            print("List files")
+            client_session.get_session_user().current_folder.list_files()
+        elif choice == "3":
+            print("Download file")
+        elif choice == "4":
+            print("Upload file")
+        elif choice == "5":
+            print("Share folder")
+        elif choice == "6":
+            print("Change password")
+            old_password = getpass("Enter your old password: ")
+            new_password = getpass("Enter your new password: ")
+            if client_auth.change_password(client_session.get_session_user().user.username, old_password, new_password):
+                print("Password changed successfully")
+            else:
+                print("Something went wrong. Please try again.")
+        elif choice == "7":
+            print("Goodbye!")
+            exit(0)
+        else:
+            print("Not a valid choice. Please try again")
 
 
 if __name__ == '__main__':

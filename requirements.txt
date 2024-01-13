@@ -1,1 +1,2 @@
 pysodium==0.7.17
+pycryptodome==3.20.0
