@@ -51,7 +51,6 @@ def main():
         DISCLAIMER : Please do not create directories directly from your file system.
         Create them with the option 6.
         """)
-        print(f"[main] {client_session.get_session_user().current_folder.to_json()}")
         print("""
         1. Change directory
         2. List files
@@ -83,6 +82,10 @@ def main():
                 print("File uploaded successfully")
         elif choice == "5":
             print("Share folder")
+            if not client_session.get_session_user().share_folder():
+                print("Something went wrong. Please try again.")
+            else:
+                print("Folder shared successfully")
         elif choice == "6":
             print("Create folder")
             folder_name = input("Enter the folder name: ")

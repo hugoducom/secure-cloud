@@ -6,3 +6,9 @@
 - un metadata file par user
 - dans les metadata des dossiers utilisateurs => leak du path complet
 - seul le programme peut créer des dossiers
+
+
+- Expliquez crypto
+- Fichiers metadata
+- Share
+- Révocation

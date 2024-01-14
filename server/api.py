@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from models import ShareMetadata
 from server.crypto import *
 from server.file_manager import *
 
@@ -37,6 +38,28 @@ def register_request(user_metadata: str, root_metadata: str) -> bool:
     # Hash the password with a random salt
     user_metadata.password_hash = argon2(user_metadata.password_hash)
     return set_user_metadata(user_metadata)
+
+
+def get_user_metadata_request(username: str) -> Optional[UserMetadata]:
+    """
+    Get the user metadata for a given user
+    :param username: Username
+    :return: UserMetadata object or None
+    """
+    return get_user_metadata(username)
+
+
+def share_folder_request(share_metadata: str, user_metadata: str) -> bool:
+    """
+    Share a folder with a user
+    :param share_metadata: Share folder metadata
+    :param user_metadata: User metadata to share with
+    :return: bool
+    """
+    share_metadata: ShareMetadata = ShareMetadata.from_json(share_metadata)
+    user_metadata: UserMetadata = UserMetadata.from_json(user_metadata)
+    user_metadata.shares.append(share_metadata)
+    return set_user_metadata(user_metadata, force=True)
 
 
 def upload_file_request(parent_folder_metadata: str, new_node_metadata: str, enc_file: str) -> bool:

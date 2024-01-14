@@ -3,8 +3,9 @@ import os
 import sys
 
 import Crypto.Random
+import Crypto.PublicKey.RSA
 
-from models import Folder, User, FolderMetadata, EncryptedFile, NodeMetadata
+from models import Folder, User, FolderMetadata, EncryptedFile, UserMetadata, Share
 from typing import Optional
 from client import file_manager as client_file_manager
 from client.crypto import *
@@ -24,6 +25,55 @@ class Session:
         self.parent_folders = []
         root_dir = os.path.dirname(sys.modules['__main__'].__file__)
         self.base_path = os.path.join(root_dir, "client", "storage", user.username)
+        # Init the shares path with the base_path
+        for share in self.user.shares:
+            share.folder_path = os.path.join(self.base_path, "shares")
+
+    def share_folder(self) -> bool:
+        """
+        Share a folder with another user
+        :return: bool
+        """
+        # List the folders in the current directory
+        print("Here is the list of the folders you can share:")
+        dir_map = self.current_folder.list_dirs()
+        if len(dir_map) == 0:
+            print("No folders to share.")
+            return False
+        try:
+            choice = int(input("Enter your choice: "))
+            if 1 <= choice <= len(dir_map):
+                # Get the folder (to share) data from the server
+                folder_name = os.path.split(dir_map[choice])[-1]
+                folder_to_share: Optional[Folder] = client_utils.get_folder_from_server(self.current_folder, self.user,
+                                                                                        folder_name)
+                if folder_to_share is None:
+                    return False
+
+                # Get the user to share with
+                username = input("Enter the username of the user you want to share with: ")
+                user_to_share_with: Optional[UserMetadata] = server_api.get_user_metadata_request(username)
+                if user_to_share_with is None:
+                    print("User not found.")
+                    return False
+
+                # If already shared with him
+                for share in user_to_share_with.shares:
+                    if share.uuid == folder_to_share.metadata.uuid:
+                        print("You already shared this folder with this user.")
+                        return False
+
+                # Cipher the sym key of the folder with his public key
+                shared_metadata = client_utils.encrypt_folder_for_sharing(folder_to_share, user_to_share_with)
+
+                # Send that to the server
+                return server_api.share_folder_request(shared_metadata.to_json(), user_to_share_with.to_json())
+            else:
+                print("Invalid choice. Please enter a valid number.")
+                return False
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+            return False
 
     def change_directory(self) -> bool:
         """
@@ -32,7 +82,11 @@ class Session:
         """
         # print the list of the folders in the current path
         print("Here is the list of the folders:")
-        dir_map = self.current_folder.list_dirs()
+        print("0. ..")
+        dir_map = self.current_folder.list_dirs()  # contains full path
+        # Also list the shares if in root directory
+        if len(self.parent_folders) == 0:
+            self.list_shares(start_index=(1 + len(dir_map)))
 
         try:
             choice = int(input("Enter your choice: "))
@@ -40,32 +94,34 @@ class Session:
                 if self.current_folder.folder_path == self.base_path:
                     print("You are already at the root directory.")
                     return False
-                # TODO change current_folder (dir_map contains full path)
                 if len(self.parent_folders) != 0:
                     self.current_folder = self.parent_folders.pop()
                 print("You are now in the folder " + self.current_folder.folder_path)
                 return True
             elif 1 <= choice <= len(dir_map):
-                # TODO change current_folder (dir_map contains full path)
                 folder_name = os.path.split(dir_map[choice])[-1]
-                node: NodeMetadata = client_utils.search_node_metadata_by_name(self.current_folder, folder_name)
-                if node is None:
-                    return False
-                new_folder_metadata: FolderMetadata = server_api.get_folder_metadata_request(
-                    os.path.join(self.current_folder.metadata.vault_path, self.current_folder.metadata.uuid, node.uuid),
-                    node.uuid
-                )
-                if new_folder_metadata is None:
-                    return False
-                new_folder: Folder = client_utils.decrypt_folder_metadata(new_folder_metadata,
-                                                                          self.current_folder.sym_key, self.user)
-                # Change the path of the folder
-                new_folder.folder_path = os.path.join(self.current_folder.folder_path, new_folder.folder_name)
+                # Normal folders
+                new_folder = client_utils.get_folder_from_server(self.current_folder, self.user, folder_name)
                 if new_folder is None:
                     return False
                 self.parent_folders.append(self.current_folder)
                 self.current_folder = new_folder
                 print("You are now in the folder " + dir_map[choice])
+                return True
+            elif len(dir_map) + 1 <= choice <= len(dir_map) + len(self.user.shares) and len(self.parent_folders) == 0:
+                # Shares
+                share_index = choice - len(dir_map) - 1
+                share: Share = self.user.shares[share_index]
+                # Verify if the share folder is downloaded
+                if share.name not in os.listdir(os.path.join(self.base_path, "shares")):
+                    print("Please download the share first.")
+                    return False
+                new_folder: Folder = client_utils.get_share_folder_from_server(share, self.base_path)
+                if new_folder is None:
+                    return False
+                self.parent_folders.append(self.current_folder)
+                self.current_folder = new_folder
+                print("You are now in the folder " + new_folder.folder_path)
                 return True
             else:
                 print("Invalid choice. Please enter a valid number.")
@@ -115,7 +171,8 @@ class Session:
         # List files in current directory
         print("Here is the list of the files you can download:")
         file_names = self.list_files_folders_to_download()
-        if len(file_names) == 0:
+        self.list_shares(start_index=(len(file_names) + 1))
+        if len(file_names) == 0 and len(self.user.shares) == 0:
             print("No files to download.")
             return False
         try:
@@ -135,24 +192,24 @@ class Session:
                     return True
                 elif node.node_type == "folder":
                     # Get the folder metadata from the server
-                    folder_metadata: FolderMetadata = server_api.get_folder_metadata_request(
-                        os.path.join(self.current_folder.metadata.vault_path, self.current_folder.metadata.uuid,
-                                     node.uuid),
-                        node.uuid)
-                    if folder_metadata is None:
-                        return False
-                    # Decrypt the folder metadata
-                    downloaded_folder: Folder = client_utils.decrypt_folder_metadata(folder_metadata,
-                                                                                     self.current_folder.sym_key,
-                                                                                     self.user)
-                    downloaded_folder.folder_path = os.path.join(self.current_folder.folder_path,
-                                                                 downloaded_folder.folder_name)
+                    downloaded_folder: Folder = client_utils.get_folder_from_server(self.current_folder, self.user,
+                                                                                    file_names[choice])
                     if downloaded_folder is None:
                         return False
                     # Create the folder
                     return client_file_manager.create_folder_from_folder_object(downloaded_folder)
                 # If node type is not file or folder
                 return False
+            elif len(file_names) + 1 <= choice <= len(file_names) + len(self.user.shares):
+                # Download the share from the server
+                share_index = choice - len(file_names) - 1
+                share: Share = self.user.shares[share_index]
+                # Get the folder metadata from the server
+                downloaded_folder: Folder = client_utils.get_share_folder_from_server(share, self.base_path)
+                if downloaded_folder is None:
+                    return False
+                # Create the folder
+                return client_file_manager.create_folder_from_folder_object(downloaded_folder)
             else:
                 print("Invalid choice. Please enter a valid number.")
             return False
@@ -184,6 +241,9 @@ class Session:
         :param folder_name: New folder name
         :return: bool
         """
+        if folder_name == "shares":
+            print("The folder name 'shares' is reserved. Please choose another name.")
+            return False
         # Update the parent folder with a new node
         is_new, new_node_metadata = client_file_manager.get_or_create_node_metadata(
             node_name=folder_name,
@@ -210,6 +270,21 @@ class Session:
         # Create the folder in the server
         return server_api.create_folder_request(self.current_folder.metadata.to_json(), new_folder_metadata.to_json(),
                                                 new_node_metadata.to_json())
+
+    def list_shares(self, start_index: int):
+        """
+        List the shares of the connected user
+        :param start_index: Index to start the list
+        :return: None
+        """
+        if len(self.user.shares) == 0:
+            print("You have no shares.")
+            return
+        i = start_index
+        print("Here is the list of your shares:")
+        for share in self.user.shares:
+            print(f"{i}. {share.name}")
+            i += 1
 
     def encrypt_file_content(self, content: bytes) -> (bytes, bytes, bytes):
         """

@@ -2,7 +2,7 @@
 import os
 import sys
 import uuid
-from models import User, NodeMetadata, Folder, FolderMetadata
+from models import User, NodeMetadata, Folder
 import Crypto.Random
 from client.crypto import *
 
@@ -19,6 +19,8 @@ def init(user: User) -> None:
         os.mkdir(os.path.join(ROOT_DIR, "client", "storage"))
     if not os.path.exists(os.path.join(ROOT_DIR, "client", "storage", user.username)):
         os.mkdir(os.path.join(ROOT_DIR, "client", "storage", user.username))
+    if not os.path.exists(os.path.join(ROOT_DIR, "client", "storage", user.username, "shares")):
+        os.mkdir(os.path.join(ROOT_DIR, "client", "storage", user.username, "shares"))
 
 
 def get_root_path_for_user(username: str) -> str:

@@ -7,7 +7,7 @@ from typing import Optional
 
 class UserMetadata:
     def __init__(self, username: str, password_hash: bytes, encrypted_sym_key: (bytes, bytes, bytes),
-                 encrypted_private_key: (bytes, bytes, bytes), public_key: bytes):
+                 encrypted_private_key: (bytes, bytes, bytes), public_key: bytes, shares: list['ShareMetadata'] = None):
         """
         User metadata (encrypted)
         :param username: Username
@@ -15,12 +15,16 @@ class UserMetadata:
         :param encrypted_sym_key: Tuple of (encrypted symmetric key, nonce, tag)
         :param encrypted_private_key: Tuple of (encrypted private key, nonce, tag)
         :param public_key: Public key
+        :param shares: List of ShareMetadata objects
         """
         self.username = username
         self.password_hash = password_hash
         self.encrypted_sym_key = encrypted_sym_key
         self.encrypted_private_key = encrypted_private_key
         self.public_key = public_key
+        self.shares = shares
+        if shares is None:
+            self.shares = []
 
     def to_json(self) -> str:
         """
@@ -41,6 +45,7 @@ class UserMetadata:
                 "tag": base64.b64encode(self.encrypted_private_key[2]).decode('utf-8'),
             },
             "public_key": base64.b64encode(self.public_key).decode('utf-8'),
+            "shares": [share.to_json_dict() for share in self.shares],
         })
 
     @staticmethod
@@ -56,12 +61,13 @@ class UserMetadata:
              base64.b64decode(metadata_object["encrypted_private_key"]["nonce"].encode('utf-8')),
              base64.b64decode(metadata_object["encrypted_private_key"]["tag"].encode('utf-8'))),
             base64.b64decode(metadata_object["public_key"].encode('utf-8')),
+            [ShareMetadata.from_json_dict(share) for share in metadata_object["shares"]],
         )
 
 
 class User:
     def __init__(self, username: str, stretched_master_key: bytes, sym_key: bytes, private_key: bytes,
-                 public_key: bytes):
+                 public_key: bytes, shares: list['Share'] = None):
         """
         User object (decrypted)
         :param username: Username
@@ -69,12 +75,16 @@ class User:
         :param sym_key: Symmetric key
         :param private_key: Private key
         :param public_key: Public key
+        :param shares: List of Share objects
         """
         self.username = username
         self.stretched_master_key = stretched_master_key
         self.sym_key = sym_key
         self.private_key = private_key
         self.public_key = public_key
+        self.shares = shares
+        if shares is None:
+            self.shares = []
 
     def to_json(self):
         """
@@ -87,7 +97,124 @@ class User:
             "sym_key": base64.b64encode(self.sym_key).decode('utf-8'),
             "private_key": base64.b64encode(self.private_key).decode('utf-8'),
             "public_key": base64.b64encode(self.public_key).decode('utf-8'),
+            "shares": [share.to_json_dict() for share in self.shares],
         })
+
+
+class Share:
+    def __init__(self, name: str, sym_key: bytes, folder_path: str, metadata: 'ShareMetadata'):
+        """
+        Share object (decrypted)
+        :param name: Share name
+        :param sym_key: Symmetric key
+        :param folder_path: Folder path (locally without the share name)
+        :param metadata: ShareMetadata object link to this share
+        """
+        self.name = name
+        self.sym_key = sym_key
+        self.folder_path = folder_path
+        self.metadata = metadata
+
+    def to_json(self):
+        """
+        Convert the object to a JSON string
+        :return: JSON string
+        """
+        return json.dumps({
+            "name": self.name,
+            "sym_key": base64.b64encode(self.sym_key).decode('utf-8'),
+            "vault_path": self.folder_path,
+            "metadata": self.metadata.to_json_dict(),
+        })
+
+    @staticmethod
+    def from_json(json_data: str) -> 'Share':
+        metadata_object = json.loads(json_data)
+        return Share(
+            metadata_object["name"],
+            base64.b64decode(metadata_object["sym_key"].encode('utf-8')),
+            metadata_object["folder_path"],
+            ShareMetadata.from_json_dict(metadata_object["metadata"]),
+        )
+
+    def to_json_dict(self):
+        """
+        Convert the object to a JSON string without using json.dumps
+        :return: dict
+        """
+        return {
+            "name": self.name,
+            "sym_key": base64.b64encode(self.sym_key).decode('utf-8'),
+            "folder_path": self.folder_path,
+            "metadata": self.metadata.to_json_dict(),
+        }
+
+    @staticmethod
+    def from_json_dict(json_data: dict) -> 'Share':
+        return Share(
+            json_data["name"],
+            base64.b64decode(json_data["sym_key"].encode('utf-8')),
+            json_data["folder_path"],
+            ShareMetadata.from_json_dict(json_data["metadata"]),
+        )
+
+
+class ShareMetadata:
+    def __init__(self, enc_name: bytes, enc_sym_key: bytes, vault_path: str, uuid: str):
+        """
+        Share metadata (encrypted)
+        :param enc_name: Encrypted name
+        :param enc_sym_key: Encrypted symmetric key
+        :param vault_path: Vault path (without UUID)
+        :param uuid: UUID of the share
+        """
+        self.enc_name = enc_name
+        self.enc_sym_key = enc_sym_key
+        self.vault_path = vault_path
+        self.uuid = uuid
+
+    def to_json(self) -> str:
+        """
+        Convert the object to a JSON string
+        :return: JSON string
+        """
+        return json.dumps({
+            "enc_name": base64.b64encode(self.enc_name).decode('utf-8'),
+            "enc_sym_key": base64.b64encode(self.enc_sym_key).decode('utf-8'),
+            "vault_path": self.vault_path,
+            "uuid": self.uuid,
+        })
+
+    @staticmethod
+    def from_json(json_data: str) -> 'ShareMetadata':
+        metadata_object = json.loads(json_data)
+        return ShareMetadata(
+            base64.b64decode(metadata_object["enc_name"].encode('utf-8')),
+            base64.b64decode(metadata_object["enc_sym_key"].encode('utf-8')),
+            metadata_object["vault_path"],
+            metadata_object["uuid"],
+        )
+
+    def to_json_dict(self) -> dict:
+        """
+        Convert the object to a JSON string without using json.dumps
+        :return: dict
+        """
+        return {
+            "enc_name": base64.b64encode(self.enc_name).decode('utf-8'),
+            "enc_sym_key": base64.b64encode(self.enc_sym_key).decode('utf-8'),
+            "vault_path": self.vault_path,
+            "uuid": self.uuid,
+        }
+
+    @staticmethod
+    def from_json_dict(json_data: dict) -> 'ShareMetadata':
+        return ShareMetadata(
+            base64.b64decode(json_data["enc_name"].encode('utf-8')),
+            base64.b64decode(json_data["enc_sym_key"].encode('utf-8')),
+            json_data["vault_path"],
+            json_data["uuid"],
+        )
 
 
 class FolderMetadata:
@@ -252,11 +379,11 @@ class Folder:
         List the directories in the current directory of the connected user
         :return: Map of index to directory path
         """
-        print("0. ..")
         i_dir = 1
         dir_map = {}
         for f in os.listdir(self.folder_path):
-            if os.path.isdir(os.path.join(self.folder_path, f)):
+            # The shares directory is reserved
+            if os.path.isdir(os.path.join(self.folder_path, f)) and f != "shares":
                 dir_map[i_dir] = os.path.join(self.folder_path, f)
                 print(f"{i_dir}. {f}")
                 i_dir += 1
