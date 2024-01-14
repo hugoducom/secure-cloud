@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-from server.storage import *
 from server.crypto import *
-from models import UserMetadata, Folder
 from server.file_manager import *
 
 
@@ -41,8 +39,30 @@ def register_request(user_metadata: str, root_metadata: str) -> bool:
     return set_user_metadata(user_metadata)
 
 
-def upload_file_request(username, folder_metadata, file_metadata):
-    pass
+def upload_file_request(parent_folder_metadata: str, new_node_metadata: str, enc_file: str) -> bool:
+    """
+    Upload a file
+    :param parent_folder_metadata:
+    :param new_node_metadata:
+    :param enc_file:
+    :return: bool
+    """
+    parent_folder_metadata: FolderMetadata = FolderMetadata.from_json(parent_folder_metadata)
+    enc_file: EncryptedFile = EncryptedFile.from_json(enc_file)
+    new_node_metadata: NodeMetadata = NodeMetadata.from_json(new_node_metadata)
+    return update_file(parent_folder_metadata, new_node_metadata, enc_file)
+
+
+def download_file_request(parent_folder_metadata: str, node_metadata: str) -> Optional[EncryptedFile]:
+    """
+    Download a file
+    :param parent_folder_metadata: Parent folder metadata
+    :param node_metadata: Node metadata
+    :return: EncryptedFile object
+    """
+    parent_folder_metadata: FolderMetadata = FolderMetadata.from_json(parent_folder_metadata)
+    node_metadata: NodeMetadata = NodeMetadata.from_json(node_metadata)
+    return download_file(parent_folder_metadata, node_metadata)
 
 
 def get_user_root_folder_request(username: str) -> Optional[FolderMetadata]:

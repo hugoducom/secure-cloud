@@ -3,4 +3,5 @@ __all__ = [
     "crypto",
     "file_manager",
     "session",
+    "utils",
 ]

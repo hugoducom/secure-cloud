@@ -65,8 +65,16 @@ def main():
             client_session.get_session_user().current_folder.list_files()
         elif choice == "3":
             print("Download file")
+            if not client_session.get_session_user().download_file():
+                print("Something went wrong. Please try again.")
+            else:
+                print("File downloaded successfully")
         elif choice == "4":
             print("Upload file")
+            if not client_session.get_session_user().upload_file():
+                print("Something went wrong. Please try again.")
+            else:
+                print("File uploaded successfully")
         elif choice == "5":
             print("Share folder")
         elif choice == "6":

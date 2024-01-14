@@ -27,7 +27,7 @@ def set_folder_metadata(folder_metadata: FolderMetadata, force: bool = False) ->
     :param force: Force the replacement of the file
     :return: bool
     """
-    path = os.path.join(folder_metadata.vault_path, "metadata-" + folder_metadata.uuid + ".json")
+    path = os.path.join(folder_metadata.vault_path, folder_metadata.uuid, "metadata-" + folder_metadata.uuid + ".json")
     if os.path.exists(path) and not force:
         return False
     # Create the metadata file
@@ -82,3 +82,16 @@ def get_user_metadata(username: str) -> Optional[UserMetadata]:
         content = f.read()
         f.close()
         return UserMetadata.from_json(content)
+
+
+def write_file(path: str, content: str) -> bool:
+    """
+    Write a file
+    :param path: Path of the file
+    :param content: Content of the file
+    :return: bool
+    """
+    with open(path, "w") as f:
+        f.write(content)
+        f.close()
+        return True

@@ -128,7 +128,7 @@ class FolderMetadata:
             },
             "vault_path": self.vault_path,
             "owner": self.owner,
-            "nodes": [node.to_json() for node in self.nodes],
+            "nodes": [node.to_json_dict() for node in self.nodes],
         })
 
     @staticmethod
@@ -144,23 +144,56 @@ class FolderMetadata:
              base64.b64decode(metadata_object["enc_sym_key"]["tag"].encode('utf-8'))),
             metadata_object["vault_path"],
             metadata_object["owner"],
-            [NodeMetadata.from_json(node) for node in metadata_object["nodes"]],
+            [NodeMetadata.from_json_dict(node) for node in metadata_object["nodes"]],
+        )
+
+
+class EncryptedFile:
+    def __init__(self, enc_content: (bytes, bytes, bytes)):
+        """
+        Encrypted file
+        :param enc_content: Tuple of (encrypted file, nonce, tag)
+        """
+        self.enc_content = enc_content
+
+    def to_json(self) -> str:
+        """
+        Convert the object to a JSON string
+        :return: JSON string
+        """
+        return json.dumps({
+            "enc_content": {
+                "cipher": base64.b64encode(self.enc_content[0]).decode('utf-8'),
+                "nonce": base64.b64encode(self.enc_content[1]).decode('utf-8'),
+                "tag": base64.b64encode(self.enc_content[2]).decode('utf-8'),
+            },
+        })
+
+    @staticmethod
+    def from_json(content) -> 'EncryptedFile':
+        metadata_object = json.loads(content)
+        return EncryptedFile(
+            (
+                base64.b64decode(metadata_object["enc_content"]["cipher"].encode('utf-8')),
+                base64.b64decode(metadata_object["enc_content"]["nonce"].encode('utf-8')),
+                base64.b64decode(metadata_object["enc_content"]["tag"].encode('utf-8'))
+            )
         )
 
 
 class Folder:
-    def __init__(self, folder_name: str, folder_path: str, sym_key: bytes, nodes: list['NodeMetadata']):
+    def __init__(self, folder_name: str, folder_path: str, sym_key: bytes, metadata: FolderMetadata):
         """
         Folder metadata (decrypted)
         :param folder_name: Folder name
-        :param folder_path: Entire folder path
+        :param folder_path: Entire local folder path
         :param sym_key: Symmetric key
-        :param nodes: List of nodes as list of NodeMetadata (files or folders)
+        :param metadata: FolderMetadata object link to this folder
         """
         self.folder_name = folder_name
         self.folder_path = folder_path
         self.sym_key = sym_key
-        self.nodes = nodes
+        self.metadata = metadata
 
     def list_dirs(self) -> dict[int, str]:
         """
@@ -200,7 +233,7 @@ class Folder:
             "folder_name": self.folder_name,
             "folder_path": self.folder_path,
             "sym_key": base64.b64encode(self.sym_key).decode('utf-8'),
-            "nodes": [node.to_json() for node in self.nodes],
+            "metadata": self.metadata.to_json(),
         })
 
 
@@ -218,7 +251,7 @@ class NodeMetadata:
         self.vault_path = vault_path
         self.node_type = node_type
 
-    def to_json(self):
+    def to_json(self) -> str:
         """
         Convert the object to a JSON string
         :return: JSON string
@@ -244,4 +277,31 @@ class NodeMetadata:
              base64.b64decode(metadata_object["enc_name"]["tag"].encode('utf-8'))),
             metadata_object["vault_path"],
             metadata_object["node_type"],
+        )
+
+    def to_json_dict(self) -> dict:
+        """
+        Convert the object to a JSON string without using json.dumps
+        :return: dict
+        """
+        return {
+            "uuid": self.uuid,
+            "enc_name": {
+                "cipher": base64.b64encode(self.enc_name[0]).decode('utf-8'),
+                "nonce": base64.b64encode(self.enc_name[1]).decode('utf-8'),
+                "tag": base64.b64encode(self.enc_name[2]).decode('utf-8'),
+            },
+            "vault_path": self.vault_path,
+            "node_type": self.node_type,
+        }
+
+    @staticmethod
+    def from_json_dict(json_data: dict) -> 'NodeMetadata':
+        return NodeMetadata(
+            json_data["uuid"],
+            (base64.b64decode(json_data["enc_name"]["cipher"].encode('utf-8')),
+             base64.b64decode(json_data["enc_name"]["nonce"].encode('utf-8')),
+             base64.b64decode(json_data["enc_name"]["tag"].encode('utf-8'))),
+            json_data["vault_path"],
+            json_data["node_type"],
         )

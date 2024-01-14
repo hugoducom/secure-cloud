@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 import os
 import sys
-from models import Folder, User
+
+import Crypto.Random
+
+from models import Folder, User, NodeMetadata, EncryptedFile
 from typing import Optional
+from client import file_manager as client_file_manager
+from client.crypto import *
+from server import api as server_api
 
 
 class Session:
@@ -36,6 +42,7 @@ class Session:
                 return True
             elif 1 <= choice <= len(dir_map):
                 # TODO change current_folder (dir_map contains full path)
+                print("You are now in the folder " + dir_map[choice])
                 return True
             else:
                 print("Invalid choice. Please enter a valid number.")
@@ -43,6 +50,84 @@ class Session:
         except ValueError:
             print("Invalid input. Please enter a number.")
             return False
+
+    def upload_file(self) -> bool:
+        """
+        Ask the user which file to upload. Then upload it to the server.
+        :return: bool
+        """
+        # List files in current directory
+        print("Here is the list of the files you can upload:")
+        file_map = self.current_folder.list_files()
+        try:
+            choice = int(input("Enter your choice: "))
+            if 1 <= choice <= len(file_map):
+                # TODO upload file
+                # Update the parent folder with a new node
+                new_node_metadata: NodeMetadata = client_file_manager.get_or_create_node_metadata(
+                    node_name=os.path.split(file_map[choice])[-1],
+                    node_type="file",
+                    parent_folder=self.current_folder,
+                )
+                self.current_folder.metadata.nodes.append(new_node_metadata)
+                enc_file = self.encrypt_file_content(client_file_manager.read_file_content(file_map[choice]))
+
+                return server_api.upload_file_request(self.current_folder.metadata.to_json(),
+                                                      new_node_metadata.to_json(),
+                                                      enc_file.to_json())
+            else:
+                print("Invalid choice. Please enter a valid number.")
+                return False
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+            return False
+
+    def download_file(self) -> bool:
+        """
+        Ask the user which file to download. Then download it from the server.
+        :return: bool
+        """
+        # List files in current directory
+        print("Here is the list of the files you can download:")
+        file_names = self.list_file_names()
+        try:
+            choice = int(input("Enter your choice: "))
+            if 1 <= choice <= len(file_names):
+                enc_file: EncryptedFile = server_api.download_file_request(self.current_folder.metadata.to_json(),
+                                                                           self.current_folder.metadata.nodes[
+                                                                               choice - 1].to_json())
+                if enc_file is None:
+                    return False
+
+                with (open(os.path.join(self.current_folder.folder_path, file_names[choice]), "wb")) as f:
+                    f.write(self.decrypt_file_content(enc_file))
+                    f.close()
+
+                return True
+            else:
+                print("Invalid choice. Please enter a valid number.")
+            return False
+
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+        return False
+
+    def list_file_names(self) -> dict[int, str]:
+        """
+        List the file names in a folder
+        :return: Map of index to file names (only names without path)
+        """
+        if self is None:
+            raise Exception("No user connected")
+        file_map = {}
+        index = 1
+        for node in self.current_folder.metadata.nodes:
+            name = xcha_cha_20_poly_1305_decrypt(node.enc_name[0], node.enc_name[1], node.enc_name[2],
+                                                 self.current_folder.sym_key).decode('utf-8')
+            file_map[index] = name
+            print(f"{index}. {node.node_type.upper()} : {name}")
+            index += 1
+        return file_map
 
     @staticmethod
     def logout():
@@ -52,6 +137,27 @@ class Session:
         """
         global SESSION_USER
         SESSION_USER = None
+
+    def encrypt_file_content(self, content: bytes) -> (bytes, bytes, bytes):
+        """
+        Encrypt the content of a file
+        :param content: Content of the file as bytes
+        :return: EncryptedFile object
+        """
+        nonce = Crypto.Random.get_random_bytes(24)
+        _, enc_content, tag = xcha_cha_20_poly_1305_encrypt(content, nonce, self.current_folder.sym_key)
+        return EncryptedFile(
+            (enc_content, nonce, tag)
+        )
+
+    def decrypt_file_content(self, enc_file: EncryptedFile) -> bytes:
+        """
+        Decrypt the content of a file
+        :param enc_file: EncryptedFile object
+        :return: Content of the file as bytes
+        """
+        return xcha_cha_20_poly_1305_decrypt(enc_file.enc_content[0], enc_file.enc_content[1], enc_file.enc_content[2],
+                                             self.current_folder.sym_key)
 
 
 def set_session_user(session: Session):
