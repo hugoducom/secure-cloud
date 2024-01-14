@@ -53,8 +53,9 @@ def main():
         3. Download file
         4. Upload file
         5. Share folder
-        6. Change password
-        7. Exit
+        6. Create folder
+        7. Change password
+        8. Exit
         """)
         choice = input("Enter your choice: ")
         if choice == "1":
@@ -78,6 +79,13 @@ def main():
         elif choice == "5":
             print("Share folder")
         elif choice == "6":
+            print("Create folder")
+            folder_name = input("Enter the folder name: ")
+            if not client_session.get_session_user().create_folder(folder_name):
+                print("Something went wrong. Please try again.")
+            else:
+                print("Folder created successfully")
+        elif choice == "7":
             print("Change password")
             old_password = getpass("Enter your old password: ")
             new_password = getpass("Enter your new password: ")
@@ -85,7 +93,7 @@ def main():
                 print("Password changed successfully")
             else:
                 print("Something went wrong. Please try again.")
-        elif choice == "7":
+        elif choice == "8":
             print("Goodbye!")
             exit(0)
         else:

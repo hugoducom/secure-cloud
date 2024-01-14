@@ -95,3 +95,14 @@ def write_file(path: str, content: str) -> bool:
         f.write(content)
         f.close()
         return True
+
+def create_folder(path: str) -> bool:
+    """
+    Create a folder
+    :param path: Path of the folder
+    :return: bool
+    """
+    if not os.path.exists(path):
+        os.mkdir(path)
+        return True
+    return False

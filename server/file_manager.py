@@ -23,7 +23,7 @@ def init_user_root_folder(folder_metadata: FolderMetadata):
 def update_file(parent_folder_metadata: FolderMetadata, new_node_metadata: NodeMetadata,
                 enc_file: EncryptedFile) -> bool:
     """
-    Update the folder metadata
+    Update a file (upload)
     :param parent_folder_metadata: FolderMetadata object of the parent directory
     :param new_node_metadata: NodeMetadata object (new node)
     :param enc_file: EncryptedFile object

@@ -4,7 +4,7 @@ import sys
 
 import Crypto.Random
 
-from models import Folder, User, NodeMetadata, EncryptedFile
+from models import Folder, User, FolderMetadata, EncryptedFile
 from typing import Optional
 from client import file_manager as client_file_manager
 from client.crypto import *
@@ -42,6 +42,7 @@ class Session:
                 return True
             elif 1 <= choice <= len(dir_map):
                 # TODO change current_folder (dir_map contains full path)
+
                 print("You are now in the folder " + dir_map[choice])
                 return True
             else:
@@ -62,14 +63,14 @@ class Session:
         try:
             choice = int(input("Enter your choice: "))
             if 1 <= choice <= len(file_map):
-                # TODO upload file
                 # Update the parent folder with a new node
-                new_node_metadata: NodeMetadata = client_file_manager.get_or_create_node_metadata(
+                is_new, new_node_metadata = client_file_manager.get_or_create_node_metadata(
                     node_name=os.path.split(file_map[choice])[-1],
                     node_type="file",
                     parent_folder=self.current_folder,
                 )
-                self.current_folder.metadata.nodes.append(new_node_metadata)
+                if is_new:
+                    self.current_folder.metadata.nodes.append(new_node_metadata)
                 enc_file = self.encrypt_file_content(client_file_manager.read_file_content(file_map[choice]))
 
                 return server_api.upload_file_request(self.current_folder.metadata.to_json(),
@@ -90,6 +91,9 @@ class Session:
         # List files in current directory
         print("Here is the list of the files you can download:")
         file_names = self.list_file_names()
+        if len(file_names) == 0:
+            print("No files to download.")
+            return False
         try:
             choice = int(input("Enter your choice: "))
             if 1 <= choice <= len(file_names):
@@ -128,6 +132,39 @@ class Session:
             print(f"{index}. {node.node_type.upper()} : {name}")
             index += 1
         return file_map
+
+    def create_folder(self, folder_name: str) -> bool:
+        """
+        Create a folder
+        :param folder_name: Folder name
+        :return: bool
+        """
+        # Update the parent folder with a new node
+        is_new, new_node_metadata = client_file_manager.get_or_create_node_metadata(
+            node_name=folder_name,
+            node_type="folder",
+            parent_folder=self.current_folder,
+        )
+        if not is_new:
+            print("Folder already exists")
+            return False
+        self.current_folder.metadata.nodes.append(new_node_metadata)
+        client_file_manager.create_folder(self.current_folder.folder_path, folder_name)
+        # Generate new sym key for the folder created
+        nonce = Crypto.Random.get_random_bytes(24)
+        sym_key = Crypto.Random.get_random_bytes(KEY_LENGTH_BYTES)
+        _, encrypted_sym_key, tag = xcha_cha_20_poly_1305_encrypt(sym_key, nonce, self.current_folder.sym_key)
+        new_folder_metadata = FolderMetadata(
+            uuid=new_node_metadata.uuid,
+            enc_name=new_node_metadata.enc_name,
+            enc_sym_key=(encrypted_sym_key, nonce, tag),
+            vault_path=os.path.join(self.current_folder.metadata.vault_path, self.current_folder.metadata.uuid),
+            owner=self.user.username,
+            nodes=[],
+        )
+        # Create the folder in the server
+        return server_api.create_folder_request(self.current_folder.metadata.to_json(), new_folder_metadata.to_json(),
+                                                new_node_metadata.to_json())
 
     @staticmethod
     def logout():

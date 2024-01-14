@@ -97,3 +97,22 @@ def change_password_request(username: str, old_password_hash: bytes, new_passwor
     # No need to change private key because the sym key is the same
 
     return set_user_metadata(user_metadata, force=True)
+
+
+def create_folder_request(parent_folder_metadata: str, new_folder_metadata: str, new_node_metadata: str) -> bool:
+    """
+    Create a folder
+    :param parent_folder_metadata: Parent folder metadata
+    :param new_node_metadata: New node metadata
+    :return: bool
+    """
+    parent_folder_metadata: FolderMetadata = FolderMetadata.from_json(parent_folder_metadata)
+    new_folder_metadata: FolderMetadata = FolderMetadata.from_json(new_folder_metadata)
+    new_node_metadata: NodeMetadata = NodeMetadata.from_json(new_node_metadata)
+    if new_node_metadata.node_type != "folder":
+        return False
+    path = os.path.join(parent_folder_metadata.vault_path, parent_folder_metadata.uuid, new_node_metadata.uuid)
+    # Create metadata file for the new folder
+    if not create_folder(path):
+        return False
+    return set_folder_metadata(new_folder_metadata)
