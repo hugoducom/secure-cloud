@@ -5,3 +5,4 @@
 - argon2 avec des \x00 ??
 - un metadata file par user
 - dans les metadata des dossiers utilisateurs => leak du path complet
+- seul le programme peut créer des dossiers

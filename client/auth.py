@@ -71,7 +71,7 @@ def login(username: str, password: str) -> bool:
 
     user: User = decrypt_user_metadata(ret, master_key)
     root_folder_metadata: FolderMetadata = server_api.get_user_root_folder_request(user.username)
-    root_folder: Folder = decrypt_folder_metadata(root_folder_metadata, user)
+    root_folder: Folder = decrypt_folder_metadata(root_folder_metadata, user.sym_key, user)
     set_session_user(Session(user, root_folder))
     return True
 

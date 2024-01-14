@@ -48,9 +48,14 @@ def main():
 
     while True:
         print("""
+        DISCLAIMER : Please do not create directories directly from your file system.
+        Create them with the option 6.
+        """)
+        print(f"[main] {client_session.get_session_user().current_folder.to_json()}")
+        print("""
         1. Change directory
         2. List files
-        3. Download file
+        3. Download file/folder
         4. Upload file
         5. Share folder
         6. Create folder
@@ -65,14 +70,14 @@ def main():
             print("List files")
             client_session.get_session_user().current_folder.list_files()
         elif choice == "3":
-            print("Download file")
-            if not client_session.get_session_user().download_file():
+            print("Download file/folder")
+            if not client_session.get_session_user().download_file_folder():
                 print("Something went wrong. Please try again.")
             else:
-                print("File downloaded successfully")
+                print("File or folder downloaded successfully")
         elif choice == "4":
             print("Upload file")
-            if not client_session.get_session_user().upload_file():
+            if not client_session.get_session_user().upload_file_folder():
                 print("Something went wrong. Please try again.")
             else:
                 print("File uploaded successfully")

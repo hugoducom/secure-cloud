@@ -1,1 +1,37 @@
-{"uuid": "fab", "enc_name": {"cipher": "AA==", "nonce": "AA==", "tag": "AA=="}, "enc_sym_key": {"cipher": "ONBewRVrrzpzzZyyfBhMmxFio2GwCaW6LiV4c84S6n4=", "nonce": "DeGorhW+JDo5yR9h9ULL2OjX6oDNOdij", "tag": "Z6csRy/c+kky4EgI09afwQ=="}, "vault_path": "C:\\Users\\Hugo\\Desktop\\secure-cloud\\server\\vault\\files", "owner": "fab", "nodes": [{"uuid": "4cd53c35-3b24-476b-8492-b0388998dc38", "enc_name": {"cipher": "N4Ij", "nonce": "OdbicMEjwTBaqZjoSyRvyMP7DZXqtS7X", "tag": "X6U7zUTATTfVkol+9hf7mA=="}, "vault_path": "C:\\Users\\Hugo\\Desktop\\secure-cloud\\server\\vault\\files\\fab", "node_type": "folder"}, {"uuid": "baf7e2c3-436a-41ee-b559-2e96f79c0b23", "enc_name": {"cipher": "O3T/AQ1Jimo=", "nonce": "ZeR5dPNqPNhLjldBXXlCs7eRy6aaBXUc", "tag": "SaGOfDDj1ISjMh16gsfztA=="}, "vault_path": "C:\\Users\\Hugo\\Desktop\\secure-cloud\\server\\vault\\files\\fab", "node_type": "file"}]}
+{
+  "uuid": "fab",
+  "enc_name": {
+    "cipher": "AA==",
+    "nonce": "AA==",
+    "tag": "AA=="
+  },
+  "enc_sym_key": {
+    "cipher": "UkQiERKbMMbFZ3eIhJqQ2Hvrhk9GVl1++MMdyXyuTcA=",
+    "nonce": "jibINPmBZDqeIGKGUyxQ4kY8Y0Vq6sqV",
+    "tag": "MnkBDP8d365o0IA4k1YvKA=="
+  },
+  "vault_path": "C:\\Users\\Hugo\\Desktop\\secure-cloud\\server\\vault\\files",
+  "owner": "fab",
+  "nodes": [
+    {
+      "uuid": "bd556fb4-1e2f-46ee-a481-ace938910701",
+      "enc_name": {
+        "cipher": "HSROtQ==",
+        "nonce": "bvsLxHZwAsVWBLIHPiPlZjIpPQGZH2gi",
+        "tag": "qceOX0hdWw6G9Ki/+MV7oQ=="
+      },
+      "vault_path": "C:\\Users\\Hugo\\Desktop\\secure-cloud\\server\\vault\\files\\fab",
+      "node_type": "folder"
+    },
+    {
+      "uuid": "d1fb14ff-7559-4a95-96ef-56d483f90bd8",
+      "enc_name": {
+        "cipher": "8hLT9ku6lg==",
+        "nonce": "cBwJ/sJ05nr1JLMz6hefcY+Qcbq4JQMZ",
+        "tag": "ZG8gmBrYzIIefxPniuZqeg=="
+      },
+      "vault_path": "C:\\Users\\Hugo\\Desktop\\secure-cloud\\server\\vault\\files\\fab",
+      "node_type": "file"
+    }
+  ]
+}

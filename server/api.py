@@ -74,6 +74,16 @@ def get_user_root_folder_request(username: str) -> Optional[FolderMetadata]:
     return get_folder_metadata(os.path.join(ROOT_DIR, "server", "vault", "files", username), username)
 
 
+def get_folder_metadata_request(folder_path: str, folder_uuid: str) -> Optional[FolderMetadata]:
+    """
+    Get the folder metadata for a given folder
+    :param folder_path: The path of the folder
+    :param folder_uuid: The uuid of the folder
+    :return: FolderMetadata object or None
+    """
+    return get_folder_metadata(folder_path, folder_uuid)
+
+
 def change_password_request(username: str, old_password_hash: bytes, new_password_hash: bytes,
                             new_encrypted_sym_key: (bytes, bytes, bytes)) -> bool:
     """
@@ -103,6 +113,7 @@ def create_folder_request(parent_folder_metadata: str, new_folder_metadata: str,
     """
     Create a folder
     :param parent_folder_metadata: Parent folder metadata
+    :param new_folder_metadata: New folder metadata
     :param new_node_metadata: New node metadata
     :return: bool
     """
@@ -114,5 +125,8 @@ def create_folder_request(parent_folder_metadata: str, new_folder_metadata: str,
     path = os.path.join(parent_folder_metadata.vault_path, parent_folder_metadata.uuid, new_node_metadata.uuid)
     # Create metadata file for the new folder
     if not create_folder(path):
+        return False
+    # Set the parent directory metadata
+    if not set_folder_metadata(parent_folder_metadata, force=True):
         return False
     return set_folder_metadata(new_folder_metadata)

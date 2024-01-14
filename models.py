@@ -2,6 +2,7 @@
 import json
 import os
 import base64
+from typing import Optional
 
 
 class UserMetadata:
@@ -131,6 +132,43 @@ class FolderMetadata:
             "nodes": [node.to_json_dict() for node in self.nodes],
         })
 
+    def to_json_dict(self) -> dict:
+        """
+        Convert the object to a JSON string without using json.dumps
+        :return: dict
+        """
+        return {
+            "uuid": self.uuid,
+            "enc_name": {
+                "cipher": base64.b64encode(self.enc_name[0]).decode('utf-8'),
+                "nonce": base64.b64encode(self.enc_name[1]).decode('utf-8'),
+                "tag": base64.b64encode(self.enc_name[2]).decode('utf-8'),
+            },
+            "enc_sym_key": {
+                "cipher": base64.b64encode(self.enc_sym_key[0]).decode('utf-8'),
+                "nonce": base64.b64encode(self.enc_sym_key[1]).decode('utf-8'),
+                "tag": base64.b64encode(self.enc_sym_key[2]).decode('utf-8'),
+            },
+            "vault_path": self.vault_path,
+            "owner": self.owner,
+            "nodes": [node.to_json_dict() for node in self.nodes],
+        }
+
+    @staticmethod
+    def from_json_dict(json_data: dict) -> 'FolderMetadata':
+        return FolderMetadata(
+            json_data["uuid"],
+            (base64.b64decode(json_data["enc_name"]["cipher"].encode('utf-8')),
+             base64.b64decode(json_data["enc_name"]["nonce"].encode('utf-8')),
+             base64.b64decode(json_data["enc_name"]["tag"].encode('utf-8'))),
+            (base64.b64decode(json_data["enc_sym_key"]["cipher"].encode('utf-8')),
+             base64.b64decode(json_data["enc_sym_key"]["nonce"].encode('utf-8')),
+             base64.b64decode(json_data["enc_sym_key"]["tag"].encode('utf-8'))),
+            json_data["vault_path"],
+            json_data["owner"],
+            [NodeMetadata.from_json_dict(node) for node in json_data["nodes"]],
+        )
+
     @staticmethod
     def from_json(json_data: str) -> 'FolderMetadata':
         metadata_object = json.loads(json_data)
@@ -146,6 +184,20 @@ class FolderMetadata:
             metadata_object["owner"],
             [NodeMetadata.from_json_dict(node) for node in metadata_object["nodes"]],
         )
+
+    def get_node_directory_at_index(self, index: int) -> Optional['NodeMetadata']:
+        """
+        Get the node metadata at a given index
+        :param index: Index
+        :return: NodeMetadata object
+        """
+        i = 0
+        for node in self.nodes:
+            if node.node_type == "folder":
+                if index == i:
+                    return node
+                i += 1
+        return None
 
 
 class EncryptedFile:
@@ -186,7 +238,7 @@ class Folder:
         """
         Folder metadata (decrypted)
         :param folder_name: Folder name
-        :param folder_path: Entire local folder path
+        :param folder_path: Entire local folder path (with folder_name included)
         :param sym_key: Symmetric key
         :param metadata: FolderMetadata object link to this folder
         """
@@ -207,21 +259,25 @@ class Folder:
             if os.path.isdir(os.path.join(self.folder_path, f)):
                 dir_map[i_dir] = os.path.join(self.folder_path, f)
                 print(f"{i_dir}. {f}")
+                i_dir += 1
         return dir_map
 
     def list_files(self) -> dict[int, str]:
         """
-        List the files in the current directory of the connected user
+        List the files and folders in the current directory of the connected user
         :return: Map of index to file path
         """
         i_files = 1
         file_map = {}
         print(f"Current path : {self.folder_path}")
         for f in os.listdir(self.folder_path):
+            # Verify if it's a file
             if os.path.isfile(os.path.join(self.folder_path, f)):
                 file_map[i_files] = os.path.join(self.folder_path, f)
                 print("{}. {}".format(i_files, f))
                 i_files += 1
+        if len(file_map) == 0:
+            print("No files in this directory")
         return file_map
 
     def to_json(self):
@@ -233,7 +289,7 @@ class Folder:
             "folder_name": self.folder_name,
             "folder_path": self.folder_path,
             "sym_key": base64.b64encode(self.sym_key).decode('utf-8'),
-            "metadata": self.metadata.to_json(),
+            "metadata": self.metadata.to_json_dict(),
         })
 
 

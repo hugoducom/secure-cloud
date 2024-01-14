@@ -2,7 +2,7 @@
 import os
 import sys
 import uuid
-from models import User, NodeMetadata, Folder
+from models import User, NodeMetadata, Folder, FolderMetadata
 import Crypto.Random
 from client.crypto import *
 
@@ -56,6 +56,19 @@ def get_or_create_node_metadata(node_name: str, node_type: str, parent_folder: F
         vault_path=vault_path,
         node_type=node_type,
     )
+
+
+def create_folder_from_folder_object(folder: Folder) -> bool:
+    """
+    Create a folder from a Folder object
+    :param folder: Folder object
+    :return: bool
+    """
+    # Create the folder
+    if not create_folder(folder.folder_path, ""):
+        print("Folder already exists!")
+        return False
+    return True
 
 
 def read_file_content(file_path: str) -> bytes:
