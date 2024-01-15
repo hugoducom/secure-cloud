@@ -1,4 +1,6 @@
-# secure-cloud
+# Lightweight Encrypted File System
+
+Python required : 3.10 or greater
 
 How to install and execute the project locally :
 
