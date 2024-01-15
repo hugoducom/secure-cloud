@@ -1,14 +1,23 @@
 # secure-cloud
 
-- pycryptodome a que RSA OAEP PKCS#1 ? WTF
-- https://pycryptodome-master.readthedocs.io/en/latest/src/cipher/oaep.html#Crypto.Cipher.PKCS1_OAEP.PKCS1OAEP_Cipher
-- argon2 avec des \x00 ??
-- un metadata file par user
-- dans les metadata des dossiers utilisateurs => leak du path complet
-- seul le programme peut créer des dossiers
+How to install and execute the project locally :
 
+```sh
+git clone https://github.com/hugoducom/secure-cloud.git
+cd secure-cloud
+# Maybe create a venv
+pip install -r .\requirements.txt
+python .\main.py
+```
 
-- Expliquez crypto
-- Fichiers metadata
-- Share
-- Révocation
+It should output the welcoming CLI :
+
+```
+Welcome to the secure cloud client!
+
+        1. Login
+        2. Register
+        3. Exit
+
+Enter your choice:
+```
