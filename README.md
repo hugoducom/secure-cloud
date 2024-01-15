@@ -8,8 +8,8 @@ How to install and execute the project locally :
 git clone https://github.com/hugoducom/secure-cloud.git
 cd secure-cloud
 # Maybe create a venv
-pip install -r .\requirements.txt
-python .\main.py
+pip install -r requirements.txt
+python main.py
 ```
 
 It should output the welcoming CLI :
