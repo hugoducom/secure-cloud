@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import pysodium
-from Crypto.Hash import SHA512, SHAKE128
+from Crypto.Hash import SHA512, SHAKE256
 from Crypto.Protocol.KDF import HKDF
 from Crypto.Cipher import ChaCha20_Poly1305, PKCS1_OAEP
 from Crypto.PublicKey import RSA
@@ -15,7 +15,7 @@ def generate_master_key(username: str, password: str) -> bytes:
     :return: Master key
     """
     # Hash the username to fit the salt size
-    salt = SHAKE128.new(username.encode('utf-8')).read(pysodium.crypto_pwhash_SALTBYTES)
+    salt = SHAKE256.new(username.encode('utf-8')).read(pysodium.crypto_pwhash_SALTBYTES)
     # Hashed in 1.02 second with a Lenovo Thinkpad E14
     return pysodium.crypto_pwhash(outlen=KEY_LENGTH_BYTES, passwd=password, salt=salt,
                                   opslimit=pysodium.crypto_pwhash_argon2i_OPSLIMIT_MODERATE,
