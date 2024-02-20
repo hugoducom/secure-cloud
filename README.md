@@ -23,3 +23,5 @@ Welcome to the secure cloud client!
 
 Enter your choice:
 ```
+
+Technical details (french) : [https://hugoducom.ch/post/2024/cloud/](https://hugoducom.ch/post/2024/cloud/)
